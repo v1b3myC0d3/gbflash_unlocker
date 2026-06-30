@@ -90,7 +90,7 @@ jobs:
                 --icon-size 100 \
                 --icon "GBFlash Unlock.app" 175 120 \
                 --app-drop-link 425 120 \
-                "$dmg_name" \
+                "dist/$dmg_name" \
                 dist/dmg/; then
               echo "Successfully created image of GBFlash Unlock v${{ env.VERSION }}."
               break
