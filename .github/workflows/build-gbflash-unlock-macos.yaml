@@ -1,0 +1,123 @@
+name: Build GBFlash Unlocker (macOS)
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
+    defaults:
+      run:
+        working-directory: .
+    env:
+      VERSION: ${{ github.event.release.tag_name || '0.0' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            arch: arm64
+          - os: macos-15-intel
+            arch: x86_64
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Create directory for Python packages
+        run: mkdir -p ${{ github.workspace }}/venv
+
+      - name: Cache Python packages
+        id: cache-pip
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/venv
+          key: gbflash-unlock-macos-${{ matrix.arch }}-python-dependencies-20260630
+          restore-keys: |
+            gbflash-unlock-macos-${{ matrix.arch }}-python-dependencies-
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Python packages
+        if: steps.cache-pip.outputs.cache-hit != 'true'
+        run: |
+          python -m pip install --upgrade pip
+          python -m venv ${{ github.workspace }}/venv
+          source ${{ github.workspace }}/venv/bin/activate
+          pip install -r requirements-gbflash-unlock.txt
+
+      - name: Install libusb
+        run: |
+          brew install libusb
+          # The spec hardcodes /opt/homebrew/... (Apple Silicon). On Intel runners
+          # Homebrew lives under /usr/local, so expose libusb at the expected path.
+          if [ ! -f /opt/homebrew/lib/libusb-1.0.dylib ] && [ -f /usr/local/lib/libusb-1.0.dylib ]; then
+            sudo mkdir -p /opt/homebrew/lib
+            sudo ln -sf /usr/local/lib/libusb-1.0.dylib /opt/homebrew/lib/libusb-1.0.dylib
+          fi
+
+      - name: Build GBFlash Unlocker
+        env:
+          PYINSTALLER_CONFIG_DIR: ${{ github.workspace }}/.pyinstaller
+        run: |
+          source ${{ github.workspace }}/venv/bin/activate
+          ./build_gbflash_unlock_macos.sh
+
+      - name: Create DMG
+        run: |
+          brew install create-dmg
+          mkdir -p dist/dmg
+          cp -R "dist/GBFlash Unlock.app" dist/dmg/
+
+          dmg_name="GBFlashUnlock-${{ env.VERSION }}_macOS-${{ matrix.arch }}.dmg"
+
+          max_retries=5
+          retry_delay=10
+
+          for attempt in $(seq 1 $max_retries); do
+            if create-dmg \
+                --volname "GBFlash Unlock" \
+                --window-pos 200 120 \
+                --window-size 600 300 \
+                --icon-size 100 \
+                --icon "GBFlash Unlock.app" 175 120 \
+                --app-drop-link 425 120 \
+                "$dmg_name" \
+                dist/dmg/; then
+              echo "Successfully created image of GBFlash Unlock v${{ env.VERSION }}."
+              break
+            else
+              echo "Failed to create DMG (attempt $attempt/$max_retries). Retrying in $retry_delay seconds..."
+              sleep $retry_delay
+            fi
+
+            if [[ $attempt -eq $max_retries ]]; then
+              echo "Error: Failed to create DMG after $max_retries attempts."
+              exit 1
+            fi
+          done
+
+      - name: Create artifact
+        if: env.VERSION == '0.0'
+        uses: actions/upload-artifact@v4
+        with:
+          name: GBFlashUnlock_macOS-${{ matrix.arch }}
+          path: dist/GBFlashUnlock-${{ env.VERSION }}_macOS-${{ matrix.arch }}.dmg
+
+      - name: Upload release asset
+        if: env.VERSION != '0.0'
+        uses: softprops/action-gh-release@v2.0.8
+        with:
+          tag_name: ${{ github.event.release.tag_name }}
+          files: dist/GBFlashUnlock-${{ env.VERSION }}_macOS-${{ matrix.arch }}.dmg
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
