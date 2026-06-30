@@ -63,7 +63,7 @@ jobs:
           PYINSTALLER_CONFIG_DIR: ${{ github.workspace }}/.pyinstaller
         run: |
           source ${{ github.workspace }}/venv/bin/activate
-          ./build_gbflash_unlock_linux.sh
+          bash ./build_gbflash_unlock_linux.sh
 
       - name: Create tarball
         run: |
