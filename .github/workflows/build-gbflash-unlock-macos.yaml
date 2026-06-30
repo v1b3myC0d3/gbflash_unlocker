@@ -68,7 +68,7 @@ jobs:
           PYINSTALLER_CONFIG_DIR: ${{ github.workspace }}/.pyinstaller
         run: |
           source ${{ github.workspace }}/venv/bin/activate
-          ./build_gbflash_unlock_macos.sh
+          bash ./build_gbflash_unlock_macos.sh
 
       - name: Create DMG
         run: |
