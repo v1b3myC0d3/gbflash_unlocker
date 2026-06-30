@@ -66,6 +66,7 @@ jobs:
       - name: Build GBFlash Unlocker
         env:
           PYINSTALLER_CONFIG_DIR: ${{ github.workspace }}/.pyinstaller
+          PYTHON_BIN: ${{ github.workspace }}/venv/bin/python
         run: |
           source ${{ github.workspace }}/venv/bin/activate
           bash ./build_gbflash_unlock_macos.sh
